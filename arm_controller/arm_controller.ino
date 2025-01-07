@@ -27,7 +27,7 @@ unsigned long startMillis;
 unsigned long currentMillis;
 byte RxArray[32];
 
-const float CALIBRATION_CURRENT = 35.0;
+const float CALIBRATION_CURRENT = 40.0;
 const float CALIBRATION_OFFSET = 200.0;
 const double CALIBRATION_MIN = -1000;
 const double CALIBRATION_MAX = 100000;
@@ -37,6 +37,10 @@ double homeCalibration;
 Adafruit_NeoPixel onboard_pixel(1, PIN_NEOPIXEL);
 
 // Set up the serial command processor
+#define SERIALCMD_MAXCMDNUM 20    // Max number of commands
+#define SERIALCMD_MAXCMDLNG 20    // Max command name length
+#define SERIALCMD_MAXBUFFER 32    // Max buffer length
+
 SerialCmd mySerCmd(Serial);
 
 
@@ -74,10 +78,101 @@ void I2C_RxHandler(int numBytes) {
 }
 
 // -------------------------------------------------------
-// Command User Functions
+// User Functions
 // -------------------------------------------------------
 void sendOK(void) {
-  mySerCmd.Print((char *) "OK \r\n");
+  mySerCmd.Print((char *) "OK\r\n");
+}
+
+
+// -------------------------------------------------------
+// Functions for SerialCmd
+// -------------------------------------------------------
+void send_PING(void) {
+  sendOK();
+}
+
+void set_LEDON(void) {
+  double current_reading = 0.0;
+
+  dxl.setGoalPosition(DXL_GRIPPER_ID, homeCalibration - 10000, UNIT_DEGREE);
+  onboard_pixel.setPixelColor(0, onboard_pixel.Color(5, 0, 0));
+  onboard_pixel.show();
+
+  delay (500);
+
+  while(dxl.readControlTableItem(MOVING, DXL_GRIPPER_ID)) {
+    current_reading = abs(dxl.getPresentCurrent(DXL_GRIPPER_ID, UNIT_MILLI_AMPERE));
+    mySerCmd.Print((char *) "STATUS: Current reading ");
+    mySerCmd.Print(current_reading);
+    mySerCmd.Print((char *) "mA\r\n");
+
+    if (current_reading >= 200.0) {
+      dxl.setGoalPosition(DXL_GRIPPER_ID, dxl.getPresentPosition(DXL_GRIPPER_ID, UNIT_DEGREE), UNIT_DEGREE);
+      break;
+    }
+
+    delay(50);
+  }
+
+  sendOK();
+}
+
+void set_LEDOFF(void) {
+  double current_reading = 0.0;
+
+  dxl.setGoalPosition(DXL_GRIPPER_ID, homeCalibration, UNIT_DEGREE);
+  onboard_pixel.setPixelColor(0, onboard_pixel.Color(0, 0, 5));
+  onboard_pixel.show();
+
+  delay (500);
+
+  while(dxl.readControlTableItem(MOVING, DXL_GRIPPER_ID)) {
+    current_reading = abs(dxl.getPresentCurrent(DXL_GRIPPER_ID, UNIT_MILLI_AMPERE));
+    mySerCmd.Print((char *) "STATUS: Current reading ");
+    mySerCmd.Print(current_reading);
+    mySerCmd.Print((char *) "mA\r\n");
+
+    if (current_reading >= 150.0) {
+      dxl.setGoalPosition(DXL_GRIPPER_ID, dxl.getPresentPosition(DXL_GRIPPER_ID, UNIT_DEGREE), UNIT_DEGREE);
+      break;
+    }
+
+    delay(50);
+  }
+
+  sendOK();
+}
+
+void run_CALIBRATION(void) {
+  double current_reading = 0.0;
+
+  dxl.torqueOff(DXL_GRIPPER_ID);
+  dxl.setOperatingMode(DXL_GRIPPER_ID, OP_VELOCITY);
+  dxl.torqueOn(DXL_GRIPPER_ID);
+
+  dxl.setGoalVelocity(DXL_GRIPPER_ID, 30, UNIT_RPM);
+
+  while (current_reading <= CALIBRATION_CURRENT) {
+    current_reading = abs(dxl.getPresentCurrent(DXL_GRIPPER_ID, UNIT_MILLI_AMPERE));
+    mySerCmd.Print((char *) "STATUS: Current reading ");
+    mySerCmd.Print(current_reading);
+    mySerCmd.Print((char *) "mA\r\n");
+    delay(50);
+  }
+
+  dxl.setGoalVelocity(DXL_GRIPPER_ID, 0, UNIT_RPM);
+
+  dxl.torqueOff(DXL_GRIPPER_ID);
+  dxl.setOperatingMode(DXL_GRIPPER_ID, OP_EXTENDED_POSITION);
+  dxl.torqueOn(DXL_GRIPPER_ID);
+
+  homeCalibration = dxl.getPresentPosition(DXL_GRIPPER_ID, UNIT_DEGREE) - CALIBRATION_OFFSET;
+
+  dxl.setGoalPosition(DXL_GRIPPER_ID, homeCalibration, UNIT_DEGREE);
+
+  mySerCmd.Print((char *) "INFO: Calibration complete!\r\n");
+  sendOK();
 }
 
 
@@ -91,6 +186,12 @@ void setup() {
   Serial.begin(115200);
   while(!Serial && millis() - serialTimout <= 5000);
 
+  // Define serial commands
+  mySerCmd.AddCmd("PING", SERIALCMD_FROMALL, send_PING);
+  mySerCmd.AddCmd("LEDON", SERIALCMD_FROMALL, set_LEDON);
+  mySerCmd.AddCmd("LEDOFF", SERIALCMD_FROMALL, set_LEDOFF);
+  mySerCmd.AddCmd("CAL", SERIALCMD_FROMALL, run_CALIBRATION);
+
   // Set up the dynamixel serial port
   dxl.begin(57600);
   dxl.setPortProtocolVersion(DXL_PROTOCOL_VERSION);
@@ -101,10 +202,6 @@ void setup() {
 
   // Configure the gripper dynamixel
   dxl.ping(DXL_GRIPPER_ID);
-
-  dxl.torqueOff(DXL_GRIPPER_ID);
-  dxl.setOperatingMode(DXL_GRIPPER_ID, OP_VELOCITY);
-  dxl.torqueOn(DXL_GRIPPER_ID);
   
   dxl.writeControlTableItem(PROFILE_ACCELERATION, DXL_GRIPPER_ID, 10);
   dxl.writeControlTableItem(PROFILE_VELOCITY, DXL_GRIPPER_ID, 40);
@@ -115,46 +212,22 @@ void setup() {
   onboard_pixel.show();
 
   // Start the application
-  Serial.println("INFO: Starting application...");
+  mySerCmd.Print((char *) "INFO: Starting application...\r\n");
 
-  dxl.setGoalVelocity(DXL_GRIPPER_ID, 30, UNIT_RPM);
+  // Calibrate the gripper
+  mySerCmd.Print((char *) "INFO: Calibrating the gripper...\r\n");
+  run_CALIBRATION();
 }
 
 
-// ----------------------- loop() ------------------------
+// -------------------------------------------------------
+// loop()
+// -------------------------------------------------------
 void loop() {
-  double current_reading;
-  //dxl.setGoalPosition(DXL_GRIPPER_ID, -2000, UNIT_DEGREE);
+  int8_t ret;
 
-  delay(50);
-
-  //Serial.println(dxl.getPresentPosition(DXL_GRIPPER_ID, UNIT_DEGREE));
-
-  current_reading = abs(dxl.getPresentCurrent(DXL_GRIPPER_ID, UNIT_MILLI_AMPERE));
-
-  Serial.println(current_reading);
-
-  if (current_reading >= CALIBRATION_CURRENT) {
-    dxl.setGoalVelocity(DXL_GRIPPER_ID, 0, UNIT_RPM);
-
-    dxl.torqueOff(DXL_GRIPPER_ID);
-    dxl.setOperatingMode(DXL_GRIPPER_ID, OP_EXTENDED_POSITION);
-    dxl.torqueOn(DXL_GRIPPER_ID);
-
-    homeCalibration = dxl.getPresentPosition(DXL_GRIPPER_ID, UNIT_DEGREE) - CALIBRATION_OFFSET;
-
-    dxl.setGoalPosition(DXL_GRIPPER_ID, homeCalibration, UNIT_DEGREE);
-
-    delay(10000);
-
-    while(1) {
-      dxl.setGoalPosition(DXL_GRIPPER_ID, homeCalibration - CALIBRATION_MAX, UNIT_DEGREE);
-
-      delay(60000);
-
-      dxl.setGoalPosition(DXL_GRIPPER_ID, homeCalibration + CALIBRATION_MIN, UNIT_DEGREE);
-
-      delay(60000);
-    }
+  ret = mySerCmd.ReadSer();
+  if (ret == 0) {
+    mySerCmd.Print((char *) "ERROR: Urecognized command\r\n");
   }
 }
