@@ -27,8 +27,8 @@ unsigned long startMillis;
 unsigned long currentMillis;
 byte RxArray[32];
 
-const float CALIBRATION_CURRENT = 40.0;
-const float CALIBRATION_OFFSET = 200.0;
+const float CALIBRATION_CURRENT = 60.0;
+const float CALIBRATION_OFFSET = 650.0;
 const double CALIBRATION_MIN = -1000;
 const double CALIBRATION_MAX = 100000;
 double homeCalibration;
