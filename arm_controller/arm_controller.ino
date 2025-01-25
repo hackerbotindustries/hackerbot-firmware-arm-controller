@@ -87,7 +87,7 @@ void I2C_RxHandler(int numBytes) {
     case 0x10: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
       Serial.println("INFO: Set_ANGLE command received");
 
-      query = "ANGLE," + (String)(I2CRxArray[1]) + "," + (String)(((I2CRxArray[2] << 8) + I2CRxArray[3]) * 0.1) + "," + (String)(I2CRxArray[4]);
+      query = "ANGLE," + (String)(I2CRxArray[1]) + "," + (String)((((I2CRxArray[2] << 8) + I2CRxArray[3]) * 0.1) - 165.0) + "," + (String)(I2CRxArray[4]);
       
       // Convert the query string to a char array
       query.toCharArray(CharArray, query.length() + 1);
@@ -383,7 +383,7 @@ void setup() {
 
   // Configure the onboard neopixel
   onboard_pixel.begin();
-  onboard_pixel.setPixelColor(0, onboard_pixel.Color(0, 0, 5));
+  onboard_pixel.setPixelColor(0, onboard_pixel.Color(0, 5, 0));
   onboard_pixel.show();
 
   // Start the application
@@ -392,6 +392,9 @@ void setup() {
   // Calibrate the gripper
   mySerCmd.Print((char *) "INFO: Calibrating the gripper...\r\n");
   run_CALIBRATION();
+
+  onboard_pixel.setPixelColor(0, onboard_pixel.Color(0, 0, 5));
+  onboard_pixel.show();
 }
 
 
