@@ -64,15 +64,15 @@ void I2C_RxHandler(int numBytes) {
   String query = String();
   char CharArray[32];
 
-  Serial.print("INFO: I2C Byte Received... ");
+  mySerCmd.Print((char *) "INFO: I2C Byte Received... ");
   for (int i = 0; i < numBytes; i++) {
     I2CRxArray[i] = Wire.read();
-    Serial.print("0x");
+    mySerCmd.Print((char *) "0x");
     Serial.print(I2CRxArray[i], HEX);
-    Serial.print(" ");
+    mySerCmd.Print((char *) " ");
   }
 
-  Serial.println();
+  mySerCmd.Print((char *) "\r\n");
 
   // Parse incoming commands
   switch (I2CRxArray[0]) {
@@ -84,15 +84,68 @@ void I2C_RxHandler(int numBytes) {
       cmd = 0x02;
       I2CTxArray[0] = VERSION_NUMBER;
       break;
-    case 0x10: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
-      Serial.println("INFO: Set_ANGLE command received");
+    case 0x20: // Cal
+      mySerCmd.Print((char *) "INFO: run_CALIBRATION command received\r\n");
+
+      query = "CAL";
+      
+      // Convert the query string to a char array
+      query.toCharArray(CharArray, query.length() + 1);
+      ret = mySerCmd.ReadString(CharArray);
+
+      break;
+    case 0x21: // Open
+      mySerCmd.Print((char *) "INFO: set_OPEN command received\r\n");
+
+      query = "OPEN";
+      
+      // Convert the query string to a char array
+      query.toCharArray(CharArray, query.length() + 1);
+      ret = mySerCmd.ReadString(CharArray);
+      
+      break;
+    case 0x22: // Close
+      mySerCmd.Print((char *) "INFO: set_CLOSE command received\r\n");
+
+      query = "CLOSE";
+      
+      // Convert the query string to a char array
+      query.toCharArray(CharArray, query.length() + 1);
+      ret = mySerCmd.ReadString(CharArray);
+      
+      break;
+    case 0x25: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
+      mySerCmd.Print((char *) "INFO: Set_ANGLE command received\r\n");
 
       query = "ANGLE," + (String)(I2CRxArray[1]) + "," + (String)((((I2CRxArray[2] << 8) + I2CRxArray[3]) * 0.1) - 165.0) + "," + (String)(I2CRxArray[4]);
       
       // Convert the query string to a char array
       query.toCharArray(CharArray, query.length() + 1);
-      Serial.println(CharArray);
+      mySerCmd.Print((char *) "INFO: ");
+      mySerCmd.Print(CharArray);
+      mySerCmd.Print((char *) "\r\n");
       ret = mySerCmd.ReadString(CharArray);
+
+      break;
+    case 0x26: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
+      mySerCmd.Print((char *) "INFO: Set_ANGLES command received\r\n");
+
+      query = "ANGLES," + 
+      (String)((((I2CRxArray[1] << 8) + I2CRxArray[2]) * 0.1) - 165.0) + "," + 
+      (String)((((I2CRxArray[3] << 8) + I2CRxArray[4]) * 0.1) - 165.0) + "," + 
+      (String)((((I2CRxArray[5] << 8) + I2CRxArray[6]) * 0.1) - 165.0) + "," + 
+      (String)((((I2CRxArray[7] << 8) + I2CRxArray[8]) * 0.1) - 165.0) + "," + 
+      (String)((((I2CRxArray[9] << 8) + I2CRxArray[10]) * 0.1) - 165.0) + "," + 
+      (String)((((I2CRxArray[11] << 8) + I2CRxArray[12]) * 0.1) - 175.0) + "," + 
+      (String)(I2CRxArray[13]);
+      
+      // Convert the query string to a char array
+      query.toCharArray(CharArray, query.length() + 1);
+      mySerCmd.Print((char *) "INFO: ");
+      mySerCmd.Print(CharArray);
+      mySerCmd.Print((char *) "\r\n");
+      ret = mySerCmd.ReadString(CharArray);
+
       break;
   }
 }
@@ -141,8 +194,6 @@ void set_OPEN(void) {
   double current_reading = 0.0;
 
   dxl.setGoalPosition(DXL_GRIPPER_ID, homeCalibration - 10000, UNIT_DEGREE);
-  onboard_pixel.setPixelColor(0, onboard_pixel.Color(5, 0, 0));
-  onboard_pixel.show();
 
   delay (500);
 
@@ -168,8 +219,6 @@ void set_CLOSE(void) {
   double current_reading = 0.0;
 
   dxl.setGoalPosition(DXL_GRIPPER_ID, homeCalibration, UNIT_DEGREE);
-  onboard_pixel.setPixelColor(0, onboard_pixel.Color(0, 0, 5));
-  onboard_pixel.show();
 
   delay (500);
 
