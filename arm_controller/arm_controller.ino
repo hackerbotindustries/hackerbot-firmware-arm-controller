@@ -15,7 +15,7 @@ controller to the myCobot 280 arm and Hackerbot gripper.
 #include <Wire.h>
 
 // Arm Controller software version
-#define VERSION_NUMBER 1
+#define VERSION_NUMBER 2
 
 // I2C address (0x5C)
 #define I2C_ADDRESS    92
