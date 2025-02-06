@@ -31,7 +31,7 @@ Dynamixel2Arduino dxl(DXL_SERIAL, DXL_DIR_PIN);
 using namespace ControlTableItem;
 
 const float CALIBRATION_CURRENT = 60.0;
-const float CALIBRATION_OFFSET = 650.0;
+const float CALIBRATION_OFFSET = 550.0;
 const double CALIBRATION_MIN = -1000;
 const double CALIBRATION_MAX = 100000;
 double homeCalibration;
@@ -205,8 +205,8 @@ void set_ANGLE(void) {
     return;
   }
 
-  if (jointParam < 0) {
-    jointParam = 0;
+  if (jointParam < 1) {
+    jointParam = 1;
   } else if (jointParam > 6) {
     jointParam = 6;
   }
