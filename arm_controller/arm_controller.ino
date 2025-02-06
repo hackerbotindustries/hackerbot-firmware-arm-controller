@@ -47,6 +47,7 @@ Adafruit_NeoPixel onboard_pixel(1, PIN_NEOPIXEL);
 byte I2CRxArray[16];
 byte I2CTxArray[16];
 byte cmd = 0;
+byte incomingI2CFlag = 0;
 
 // Set up the myCobot280
 Uart Serial2 (&sercom2, 9, 10, SERCOM_RX_PAD_1, UART_TX_PAD_2);
@@ -61,18 +62,15 @@ int8_t ret;
 // I2C Rx Handler
 // -------------------------------------------------------
 void I2C_RxHandler(int numBytes) {
-  String query = String();
-  char CharArray[32];
-
-  mySerCmd.Print((char *) "INFO: I2C Byte Received... ");
+  //mySerCmd.Print((char *) "INFO: I2C Byte Received... \r\n");
   for (int i = 0; i < numBytes; i++) {
     I2CRxArray[i] = Wire.read();
-    mySerCmd.Print((char *) "0x");
-    Serial.print(I2CRxArray[i], HEX);
-    mySerCmd.Print((char *) " ");
+    //mySerCmd.Print((char *) "0x");
+    //Serial.print(I2CRxArray[i], HEX);
+    //mySerCmd.Print((char *) " ");
   }
 
-  mySerCmd.Print((char *) "\r\n");
+  //mySerCmd.Print((char *) "\r\n");
 
   // Parse incoming commands
   switch (I2CRxArray[0]) {
@@ -85,67 +83,24 @@ void I2C_RxHandler(int numBytes) {
       I2CTxArray[0] = VERSION_NUMBER;
       break;
     case 0x20: // Cal
-      mySerCmd.Print((char *) "INFO: run_CALIBRATION command received\r\n");
-
-      query = "CAL";
-      
-      // Convert the query string to a char array
-      query.toCharArray(CharArray, query.length() + 1);
-      ret = mySerCmd.ReadString(CharArray);
-
+      cmd = 0x20;
+      incomingI2CFlag = 1;
       break;
     case 0x21: // Open
-      mySerCmd.Print((char *) "INFO: set_OPEN command received\r\n");
-
-      query = "OPEN";
-      
-      // Convert the query string to a char array
-      query.toCharArray(CharArray, query.length() + 1);
-      ret = mySerCmd.ReadString(CharArray);
-      
+      cmd = 0x21;
+      incomingI2CFlag = 1;
       break;
     case 0x22: // Close
-      mySerCmd.Print((char *) "INFO: set_CLOSE command received\r\n");
-
-      query = "CLOSE";
-      
-      // Convert the query string to a char array
-      query.toCharArray(CharArray, query.length() + 1);
-      ret = mySerCmd.ReadString(CharArray);
-      
+      cmd = 0x22;
+      incomingI2CFlag = 1;
       break;
     case 0x25: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
-      mySerCmd.Print((char *) "INFO: Set_ANGLE command received\r\n");
-
-      query = "ANGLE," + (String)(I2CRxArray[1]) + "," + (String)((((I2CRxArray[2] << 8) + I2CRxArray[3]) * 0.1) - 165.0) + "," + (String)(I2CRxArray[4]);
-      
-      // Convert the query string to a char array
-      query.toCharArray(CharArray, query.length() + 1);
-      mySerCmd.Print((char *) "INFO: ");
-      mySerCmd.Print(CharArray);
-      mySerCmd.Print((char *) "\r\n");
-      ret = mySerCmd.ReadString(CharArray);
-
+      cmd = 0x25;
+      incomingI2CFlag = 1;
       break;
     case 0x26: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
-      mySerCmd.Print((char *) "INFO: Set_ANGLES command received\r\n");
-
-      query = "ANGLES," + 
-      (String)((((I2CRxArray[1] << 8) + I2CRxArray[2]) * 0.1) - 165.0) + "," + 
-      (String)((((I2CRxArray[3] << 8) + I2CRxArray[4]) * 0.1) - 165.0) + "," + 
-      (String)((((I2CRxArray[5] << 8) + I2CRxArray[6]) * 0.1) - 165.0) + "," + 
-      (String)((((I2CRxArray[7] << 8) + I2CRxArray[8]) * 0.1) - 165.0) + "," + 
-      (String)((((I2CRxArray[9] << 8) + I2CRxArray[10]) * 0.1) - 165.0) + "," + 
-      (String)((((I2CRxArray[11] << 8) + I2CRxArray[12]) * 0.1) - 175.0) + "," + 
-      (String)(I2CRxArray[13]);
-      
-      // Convert the query string to a char array
-      query.toCharArray(CharArray, query.length() + 1);
-      mySerCmd.Print((char *) "INFO: ");
-      mySerCmd.Print(CharArray);
-      mySerCmd.Print((char *) "\r\n");
-      ret = mySerCmd.ReadString(CharArray);
-
+      cmd = 0x26;
+      incomingI2CFlag = 1;
       break;
   }
 }
@@ -451,6 +406,53 @@ void setup() {
 // loop()
 // -------------------------------------------------------
 void loop() {
+  String query = String();
+  char CharArray[32];
+
+  if (incomingI2CFlag) {
+    mySerCmd.Print((char *) "INFO: Processing I2C Byte Received...\r\n");
+
+    switch (cmd) {
+      case 0x20: // CAL
+        mySerCmd.Print((char *) "INFO: run_CALIBRATION command received\r\n");
+        ret = mySerCmd.ReadString((char *) "CAL");
+        incomingI2CFlag = 0;
+        break;
+      case 0x21: // Open
+        mySerCmd.Print((char *) "INFO: set_OPEN command received\r\n");
+        ret = mySerCmd.ReadString((char *) "OPEN");
+        incomingI2CFlag = 0;
+        break;
+      case 0x22: // Close
+        mySerCmd.Print((char *) "INFO: set_CLOSE command received\r\n");
+        ret = mySerCmd.ReadString((char *) "CLOSE");
+        incomingI2CFlag = 0;
+        break;
+      case 0x25: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
+        mySerCmd.Print((char *) "INFO: Set_ANGLE command received\r\n");
+        query = "ANGLE," + (String)(I2CRxArray[1]) + "," + (String)((((I2CRxArray[2] << 8) + I2CRxArray[3]) * 0.1) - 165.0) + "," + (String)(I2CRxArray[4]);
+        query.toCharArray(CharArray, query.length() + 1);
+        ret = mySerCmd.ReadString(CharArray);
+        incomingI2CFlag = 0;
+        break;
+      case 0x26: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
+        mySerCmd.Print((char *) "INFO: Set_ANGLES command received\r\n");
+        query = "ANGLES," + 
+        (String)((((I2CRxArray[1] << 8) + I2CRxArray[2]) * 0.1) - 165.0) + "," + 
+        (String)((((I2CRxArray[3] << 8) + I2CRxArray[4]) * 0.1) - 165.0) + "," + 
+        (String)((((I2CRxArray[5] << 8) + I2CRxArray[6]) * 0.1) - 165.0) + "," + 
+        (String)((((I2CRxArray[7] << 8) + I2CRxArray[8]) * 0.1) - 165.0) + "," + 
+        (String)((((I2CRxArray[9] << 8) + I2CRxArray[10]) * 0.1) - 165.0) + "," + 
+        (String)((((I2CRxArray[11] << 8) + I2CRxArray[12]) * 0.1) - 175.0) + "," + 
+        (String)(I2CRxArray[13]);
+        query.toCharArray(CharArray, query.length() + 1);
+        Serial.print(query);
+        ret = mySerCmd.ReadString(CharArray);
+        incomingI2CFlag = 0;
+        break;
+    }
+  }
+
   ret = mySerCmd.ReadSer();
   if (ret == 0) {
     mySerCmd.Print((char *) "ERROR: Urecognized command\r\n");
