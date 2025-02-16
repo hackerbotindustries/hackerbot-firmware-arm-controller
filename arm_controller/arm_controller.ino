@@ -13,6 +13,7 @@ controller to the myCobot 280 arm and Hackerbot gripper.
 #include <MyCobotBasic.h>
 #include <SerialCmd.h>
 #include <Wire.h>
+#include "HackerbotSerialCmd.h"
 
 // Arm Controller software version
 #define VERSION_NUMBER 2
@@ -54,7 +55,7 @@ Uart Serial2 (&sercom2, 9, 10, SERCOM_RX_PAD_1, UART_TX_PAD_2);
 MyCobotBasic myCobot;
 
 // Set up the serial command processor
-SerialCmd mySerCmd(Serial);
+HackerbotSerialCmd mySerCmd(Serial);
 int8_t ret;
 
 
@@ -196,40 +197,26 @@ void set_CLOSE(void) {
 
 // ANGLE
 void set_ANGLE(void) {
-  float jointParam = atof(mySerCmd.ReadNext());
-  float angleParam = atof(mySerCmd.ReadNext());
-  float speedParam = atof(mySerCmd.ReadNext());
+  uint8_t jointParam = 0;
+  float angleParam = 0.0;
+  uint8_t speedParam = 0;
 
-  if (speedParam == NULL) {
+  if (!mySerCmd.ReadNextUInt8(&jointParam) ||
+      !mySerCmd.ReadNextFloat(&angleParam) ||
+      !mySerCmd.ReadNextUInt8(&speedParam)) {
     mySerCmd.Print((char *) "ERROR: Missing parameter\r\n");
     return;
   }
 
-  if (jointParam < 1) {
-    jointParam = 1;
-  } else if (jointParam > 6) {
-    jointParam = 6;
-  }
+  // Constrain values to acceptable range
+  jointParam = constrain(jointParam, 1, 6);
+  float limit = (jointParam < 6 ? 165.0 : 175.0);
+  angleParam = constrain(angleParam, -1 * limit, limit);
+  speedParam = constrain(speedParam, 0, 100);
 
-  if (angleParam < -165.0) {
-    angleParam = -165.0;
-  } else if (angleParam > 165.0) {
-    angleParam = 165.0;
-  }
-
-  if (speedParam < 0) {
-    speedParam = 0;
-  } else if (speedParam > 100) {
-    speedParam = 100;
-  }
-
-  mySerCmd.Print((char *) "STATUS: Setting the angle of joint ");
-  mySerCmd.Print((int)jointParam);
-  mySerCmd.Print((char *) " to ");
-  mySerCmd.Print(angleParam);
-  mySerCmd.Print((char *) " degrees at speed ");
-  mySerCmd.Print((int)speedParam);
-  mySerCmd.Print((char *) "\r\n");
+  char buf[128] = {0};
+  sprintf(buf, "STATUS: Setting the angle of joint %d to %0.1f degrees at speed %d\r\n", jointParam, angleParam, speedParam);
+  mySerCmd.Print(buf);
 
   myCobot.writeAngle((int)jointParam, angleParam, (int)speedParam);
 
@@ -238,71 +225,38 @@ void set_ANGLE(void) {
 
 // ANGLES
 void set_ANGLES(void) {
-  float joint1Param = atof(mySerCmd.ReadNext());
-  float joint2Param = atof(mySerCmd.ReadNext());
-  float joint3Param = atof(mySerCmd.ReadNext());
-  float joint4Param = atof(mySerCmd.ReadNext());
-  float joint5Param = atof(mySerCmd.ReadNext());
-  float joint6Param = atof(mySerCmd.ReadNext());
-  float speedParam = atof(mySerCmd.ReadNext());
+  float jointParam[6] = {0.0};
+  uint8_t speedParam = 0;
 
-  if (speedParam == NULL) {
+  if (!mySerCmd.ReadNextFloat(&jointParam[0]) ||
+      !mySerCmd.ReadNextFloat(&jointParam[1]) ||
+      !mySerCmd.ReadNextFloat(&jointParam[2]) ||
+      !mySerCmd.ReadNextFloat(&jointParam[3]) ||
+      !mySerCmd.ReadNextFloat(&jointParam[4]) ||
+      !mySerCmd.ReadNextFloat(&jointParam[5]) ||
+      !mySerCmd.ReadNextUInt8(&speedParam)) {
     mySerCmd.Print((char *) "ERROR: Missing parameter\r\n");
     return;
   }
 
-  if (joint1Param < -165.0)
-    joint1Param = 165.0;
-  else if (joint1Param > 165.0)
-    joint1Param = 165.0;
+  // Constrain values to acceptable range
+  for (int ndx=0; ndx<6; ndx++) {
+    float limit = (ndx < 5 ? 165.0 : 175.0);
+    jointParam[ndx] = constrain(jointParam[ndx], -1 * limit, limit);
+  }
+  speedParam = constrain(speedParam, 0, 100);
 
-  if (joint2Param < -165.0)
-    joint2Param = 165.0;
-  else if (joint2Param > 165.0)
-    joint2Param = 165.0;
+  char buf[160] = {0};
+  char *pos=buf;
+  pos += sprintf(pos, "STATUS: Setting the angle of the joints to");
+  for (int ndx=0; ndx<6; ndx++) {
+    pos += sprintf(pos, " (%d) %.1f%s", ndx+1, jointParam[ndx], (ndx < 5 ? "," : ""));
+  }
+  sprintf(pos, " degrees at speed %d\r\n", speedParam);
+  mySerCmd.Print(buf);
 
-  if (joint3Param < -165.0)
-    joint3Param = 165.0;
-  else if (joint3Param > 165.0)
-    joint3Param = 165.0;
-
-  if (joint4Param < -165.0)
-    joint4Param = 165.0;
-  else if (joint4Param > 165.0)
-    joint4Param = 165.0;
-
-  if (joint5Param < -165.0)
-    joint5Param = 165.0;
-  else if (joint5Param > 165.0)
-    joint5Param = 165.0;
-
-  if (joint6Param < -175.0)
-    joint6Param = 175.0;
-  else if (joint6Param > 175.0)
-    joint6Param = 175.0;
-
-  if (speedParam < 0)
-    speedParam = 0;
-  else if (speedParam > 100)
-    speedParam = 100;
-
-  Angles angles = {joint1Param, joint2Param, joint3Param, joint4Param, joint5Param, joint6Param};
-
-  mySerCmd.Print((char *) "STATUS: Setting the angle of the joints to (1) ");
-  mySerCmd.Print(joint1Param);
-  mySerCmd.Print((char *) ", (2) ");
-  mySerCmd.Print(joint2Param);
-  mySerCmd.Print((char *) ", (3) ");
-  mySerCmd.Print(joint3Param);
-  mySerCmd.Print((char *) ", (4) ");
-  mySerCmd.Print(joint4Param);
-  mySerCmd.Print((char *) ", (5) ");
-  mySerCmd.Print(joint5Param);
-  mySerCmd.Print((char *) ", (6) ");
-  mySerCmd.Print(joint6Param);
-  mySerCmd.Print((char *) " degrees at speed ");
-  mySerCmd.Print((int)speedParam);
-  mySerCmd.Print((char *) "\r\n");
+  Angles angles;
+  std::copy(std::begin(jointParam), std::end(angles), angles.begin()); // fill Angles std::array with data from scalar jointParam
 
   myCobot.writeAngles(angles, speedParam);
 
@@ -430,20 +384,22 @@ void loop() {
         break;
       case 0x25: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
         mySerCmd.Print((char *) "INFO: Set_ANGLE command received\r\n");
-        query = "ANGLE," + (String)(I2CRxArray[1]) + "," + (String)((((I2CRxArray[2] << 8) + I2CRxArray[3]) * 0.1) - 165.0) + "," + (String)(I2CRxArray[4]);
+         // divide by 10 and subtract half of uint16_t's max value to convert unsigned uint16_t representation back to signed float
+        query = "ANGLE," + (String)(I2CRxArray[1]) + "," + (String)((((I2CRxArray[2] << 8) + I2CRxArray[3]) * 0.1) - 0x7fff) + "," + (String)(I2CRxArray[4]);
         query.toCharArray(CharArray, query.length() + 1);
         ret = mySerCmd.ReadString(CharArray);
         incomingI2CFlag = 0;
         break;
       case 0x26: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
         mySerCmd.Print((char *) "INFO: Set_ANGLES command received\r\n");
-        query = "ANGLES," + 
-        (String)((((I2CRxArray[1] << 8) + I2CRxArray[2]) * 0.1) - 165.0) + "," + 
-        (String)((((I2CRxArray[3] << 8) + I2CRxArray[4]) * 0.1) - 165.0) + "," + 
-        (String)((((I2CRxArray[5] << 8) + I2CRxArray[6]) * 0.1) - 165.0) + "," + 
-        (String)((((I2CRxArray[7] << 8) + I2CRxArray[8]) * 0.1) - 165.0) + "," + 
-        (String)((((I2CRxArray[9] << 8) + I2CRxArray[10]) * 0.1) - 165.0) + "," + 
-        (String)((((I2CRxArray[11] << 8) + I2CRxArray[12]) * 0.1) - 175.0) + "," + 
+         // divide by 10 and subtract half of uint16_t's max value to convert unsigned uint16_t representation back to signed float
+        query = "ANGLES," +
+        (String)((((I2CRxArray[1] << 8) + I2CRxArray[2]) * 0.1) - 0x7fff) + "," + 
+        (String)((((I2CRxArray[3] << 8) + I2CRxArray[4]) * 0.1) - 0x7fff) + "," + 
+        (String)((((I2CRxArray[5] << 8) + I2CRxArray[6]) * 0.1) - 0x7fff) + "," + 
+        (String)((((I2CRxArray[7] << 8) + I2CRxArray[8]) * 0.1) - 0x7fff) + "," + 
+        (String)((((I2CRxArray[9] << 8) + I2CRxArray[10]) * 0.1) - 0x7fff) + "," + 
+        (String)((((I2CRxArray[11] << 8) + I2CRxArray[12]) * 0.1) - 0x7fff) + "," + 
         (String)(I2CRxArray[13]);
         query.toCharArray(CharArray, query.length() + 1);
         Serial.print(query);
