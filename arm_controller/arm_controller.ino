@@ -1,11 +1,14 @@
 /****************************************************************************** 
 HackerBot Industries, LLC
-Ian Bernstein
-December 2024
-Updated: 2025.01.05
+Created By: Ian Bernstein
+Created:    December 2024
+Updated:    2025.03.11
 
 This sketch is written for the "Arm Controller" PCB and interfaces the main
 controller to the myCobot 280 arm and Hackerbot gripper.
+
+Special thanks to the following for their code contributions to this codebase:
+Randy  - https://github.com/rbeiter
 *********************************************************************************/
 
 #include <Dynamixel2Arduino.h>
@@ -13,11 +16,11 @@ controller to the myCobot 280 arm and Hackerbot gripper.
 #include <MyCobotBasic.h>
 #include <SerialCmd.h>
 #include <Wire.h>
-#include "HackerbotShared.h"
-#include "HackerbotSerialCmd.h"
+#include "Hackerbot_Shared.h"
+#include "SerialCmd_Helper.h"
 
 // Arm Controller software version
-#define VERSION_NUMBER 2
+#define VERSION_NUMBER 3
 
 // Set up variables and constants for dynamixel control
 #define DXL_SERIAL     Serial1
@@ -53,7 +56,7 @@ Uart Serial2 (&sercom2, 9, 10, SERCOM_RX_PAD_1, UART_TX_PAD_2);
 MyCobotBasic myCobot;
 
 // Set up the serial command processor
-HackerbotSerialCmd mySerCmd(Serial);
+SerialCmdHelper mySerCmd(Serial);
 int8_t ret;
 
 
@@ -61,44 +64,38 @@ int8_t ret;
 // I2C Rx Handler
 // -------------------------------------------------------
 void I2C_RxHandler(int numBytes) {
-  //mySerCmd.Print((char *) "INFO: I2C Byte Received... \r\n");
   for (int i = 0; i < numBytes; i++) {
     I2CRxArray[i] = Wire.read();
-    //mySerCmd.Print((char *) "0x");
-    //Serial.print(I2CRxArray[i], HEX);
-    //mySerCmd.Print((char *) " ");
   }
-
-  //mySerCmd.Print((char *) "\r\n");
 
   // Parse incoming commands
   switch (I2CRxArray[0]) {
-    case 0x01: // Ping
-      cmd = 0x01;
+    case I2C_COMMAND_PING: // Ping
+      cmd = I2C_COMMAND_PING;
       I2CTxArray[0] = 0x01;
       break;
-    case 0x02: // Version
-      cmd = 0x02;
+    case I2C_COMMAND_VERSION: // Version
+      cmd = I2C_COMMAND_VERSION;
       I2CTxArray[0] = VERSION_NUMBER;
       break;
-    case 0x20: // Cal
-      cmd = 0x20;
+    case I2C_COMMAND_A_CAL: // Cal
+      cmd = I2C_COMMAND_A_CAL;
       incomingI2CFlag = 1;
       break;
-    case 0x21: // Open
-      cmd = 0x21;
+    case I2C_COMMAND_A_OPEN: // Open
+      cmd = I2C_COMMAND_A_OPEN;
       incomingI2CFlag = 1;
       break;
-    case 0x22: // Close
-      cmd = 0x22;
+    case I2C_COMMAND_A_CLOSE: // Close
+      cmd = I2C_COMMAND_A_CLOSE;
       incomingI2CFlag = 1;
       break;
-    case 0x25: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
-      cmd = 0x25;
+    case I2C_COMMAND_A_ANGLE: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
+      cmd = I2C_COMMAND_A_ANGLE;
       incomingI2CFlag = 1;
       break;
-    case 0x26: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
-      cmd = 0x26;
+    case I2C_COMMAND_A_ANGLES: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
+      cmd = I2C_COMMAND_A_ANGLES;
       incomingI2CFlag = 1;
       break;
   }
@@ -110,10 +107,10 @@ void I2C_RxHandler(int numBytes) {
 // -------------------------------------------------------
 void I2C_TxHandler(void) {
   switch (cmd) {
-    case 0x01: // Ping
+    case I2C_COMMAND_PING: // Ping
       Wire.write(I2CTxArray[0]);
       break;
-    case 0x02: // Version
+    case I2C_COMMAND_VERSION: // Version
       Wire.write(I2CTxArray[0]);
       break;
   }
@@ -199,18 +196,18 @@ void set_ANGLE(void) {
   float angleParam = 0.0;
   uint8_t speedParam = 0;
 
-  if (!mySerCmd.ReadNextUInt8(&jointParam) ||
-      !mySerCmd.ReadNextFloat(&angleParam) ||
-      !mySerCmd.ReadNextUInt8(&speedParam)) {
+  if (!mySerCmd.ReadNextUInt8(&jointParam) || !mySerCmd.ReadNextFloat(&angleParam) || !mySerCmd.ReadNextUInt8(&speedParam)) {
     mySerCmd.Print((char *) "ERROR: Missing parameter\r\n");
     return;
   }
 
-  // Constrain values to acceptable range
   jointParam = constrain(jointParam, 1, 6);
-  float limit = LIMIT_FOR_ARM_JOINT(jointParam);
-  angleParam = constrain(angleParam, -1 * limit, limit);
-  speedParam = constrain(speedParam, 0, 100);
+  if (jointParam != 6) {
+    angleParam = constrain(angleParam, -165.0, 165);
+  } else {
+    angleParam = constrain(angleParam, -175.0, 175);
+  }
+  speedParam  = constrain(speedParam, 0, 100);
 
   char buf[128] = {0};
   sprintf(buf, "STATUS: Setting the angle of joint %d to %0.1f degrees at speed %d\r\n", jointParam, angleParam, speedParam);
@@ -223,38 +220,50 @@ void set_ANGLE(void) {
 
 // ANGLES
 void set_ANGLES(void) {
-  float jointParam[6] = {0.0};
+  float joint1Param = 0.0;
+  float joint2Param = 0.0;
+  float joint3Param = 0.0;
+  float joint4Param = 0.0;
+  float joint5Param = 0.0;
+  float joint6Param = 0.0;
   uint8_t speedParam = 0;
 
-  if (!mySerCmd.ReadNextFloat(&jointParam[0]) ||
-      !mySerCmd.ReadNextFloat(&jointParam[1]) ||
-      !mySerCmd.ReadNextFloat(&jointParam[2]) ||
-      !mySerCmd.ReadNextFloat(&jointParam[3]) ||
-      !mySerCmd.ReadNextFloat(&jointParam[4]) ||
-      !mySerCmd.ReadNextFloat(&jointParam[5]) ||
+  if (!mySerCmd.ReadNextFloat(&joint1Param) || 
+      !mySerCmd.ReadNextFloat(&joint2Param) || 
+      !mySerCmd.ReadNextFloat(&joint3Param) || 
+      !mySerCmd.ReadNextFloat(&joint4Param) || 
+      !mySerCmd.ReadNextFloat(&joint5Param) || 
+      !mySerCmd.ReadNextFloat(&joint6Param) || 
       !mySerCmd.ReadNextUInt8(&speedParam)) {
     mySerCmd.Print((char *) "ERROR: Missing parameter\r\n");
     return;
   }
 
-  // Constrain values to acceptable range
-  for (int ndx=0; ndx<6; ndx++) {
-    float limit = LIMIT_FOR_ARM_JOINT(ndx+1);
-    jointParam[ndx] = constrain(jointParam[ndx], -1 * limit, limit);
-  }
-  speedParam = constrain(speedParam, 0, 100);
+  joint1Param = constrain(joint1Param, -165.0, 165.0);
+  joint2Param = constrain(joint1Param, -165.0, 165.0);
+  joint3Param = constrain(joint1Param, -165.0, 165.0);
+  joint4Param = constrain(joint1Param, -165.0, 165.0);
+  joint5Param = constrain(joint1Param, -165.0, 165.0);
+  joint6Param = constrain(joint1Param, -175.0, 175.0);
+  speedParam  = constrain(speedParam, 0, 100);
 
-  Angles angles;
-  std::copy(std::begin(jointParam), std::end(angles), angles.begin()); // fill Angles std::array with data from scalar jointParam
+  Angles angles = {joint1Param, joint2Param, joint3Param, joint4Param, joint5Param, joint6Param};
 
-  char buf[160] = {0};
-  char *pos=buf;
-  pos += sprintf(pos, "STATUS: Setting the angle of the joints to");
-  for (size_t ndx = 0; ndx < angles.size(); ndx++) {
-    pos += sprintf(pos, " (%d) %.1f%s", ndx+1, angles[ndx], (ndx < 5 ? "," : ""));
-  }
-  sprintf(pos, " degrees at speed %d\r\n", speedParam);
-  mySerCmd.Print(buf);
+  mySerCmd.Print((char *) "STATUS: Setting the angle of the joints to (1) ");
+  mySerCmd.Print(joint1Param);
+  mySerCmd.Print((char *) ", (2) ");
+  mySerCmd.Print(joint2Param);
+  mySerCmd.Print((char *) ", (3) ");
+  mySerCmd.Print(joint3Param);
+  mySerCmd.Print((char *) ", (4) ");
+  mySerCmd.Print(joint4Param);
+  mySerCmd.Print((char *) ", (5) ");
+  mySerCmd.Print(joint5Param);
+  mySerCmd.Print((char *) ", (6) ");
+  mySerCmd.Print(joint6Param);
+  mySerCmd.Print((char *) " degrees at speed ");
+  mySerCmd.Print((int)speedParam);
+  mySerCmd.Print((char *) "\r\n");
 
   myCobot.writeAngles(angles, speedParam);
 
@@ -365,44 +374,40 @@ void loop() {
     mySerCmd.Print((char *) "INFO: Processing I2C Byte Received...\r\n");
 
     switch (cmd) {
-      case 0x20: // CAL
+      case I2C_COMMAND_A_CAL: // CAL
         mySerCmd.Print((char *) "INFO: run_CALIBRATION command received\r\n");
         ret = mySerCmd.ReadString((char *) "CAL");
         incomingI2CFlag = 0;
         break;
-      case 0x21: // Open
+      case I2C_COMMAND_A_OPEN: // Open
         mySerCmd.Print((char *) "INFO: set_OPEN command received\r\n");
         ret = mySerCmd.ReadString((char *) "OPEN");
         incomingI2CFlag = 0;
         break;
-      case 0x22: // Close
+      case I2C_COMMAND_A_CLOSE: // Close
         mySerCmd.Print((char *) "INFO: set_CLOSE command received\r\n");
         ret = mySerCmd.ReadString((char *) "CLOSE");
         incomingI2CFlag = 0;
         break;
-      case 0x25: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
+      case I2C_COMMAND_A_ANGLE: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
         mySerCmd.Print((char *) "INFO: Set_ANGLE command received\r\n");
-
-         // divide by 10 and subtract half of uint16_t's max value to convert unsigned uint16_t representation back to signed float
-        query = "ANGLE," + (String)(I2CRxArray[1]) + "," + (String)(hb_btof(&I2CRxArray[2])) + "," + (String)(I2CRxArray[4]);
+        query = "ANGLE," + (String)(I2CRxArray[1]) + "," + (String)((((I2CRxArray[2] << 8) + I2CRxArray[3]) * 0.1) - 165.0) + "," + (String)(I2CRxArray[4]);
         query.toCharArray(CharArray, query.length() + 1);
         ret = mySerCmd.ReadString(CharArray);
         incomingI2CFlag = 0;
         break;
-      case 0x26: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
+      case I2C_COMMAND_A_ANGLES: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
         mySerCmd.Print((char *) "INFO: Set_ANGLES command received\r\n");
-         // divide by 10 and subtract half of uint16_t's max value to convert unsigned uint16_t representation back to signed float
-        query = "ANGLES," +
-        (String)(hb_btof(&I2CRxArray[1])) + "," +
-        (String)(hb_btof(&I2CRxArray[3])) + "," +
-        (String)(hb_btof(&I2CRxArray[5])) + "," +
-        (String)(hb_btof(&I2CRxArray[7])) + "," +
-        (String)(hb_btof(&I2CRxArray[9])) + "," +
-        (String)(hb_btof(&I2CRxArray[11])) + "," +
+        query = "ANGLES," + 
+        (String)((((I2CRxArray[1] << 8) + I2CRxArray[2]) * 0.1) - 165.0) + "," + 
+        (String)((((I2CRxArray[3] << 8) + I2CRxArray[4]) * 0.1) - 165.0) + "," + 
+        (String)((((I2CRxArray[5] << 8) + I2CRxArray[6]) * 0.1) - 165.0) + "," + 
+        (String)((((I2CRxArray[7] << 8) + I2CRxArray[8]) * 0.1) - 165.0) + "," + 
+        (String)((((I2CRxArray[9] << 8) + I2CRxArray[10]) * 0.1) - 165.0) + "," + 
+        (String)((((I2CRxArray[11] << 8) + I2CRxArray[12]) * 0.1) - 175.0) + "," + 
         (String)(I2CRxArray[13]);
         query.toCharArray(CharArray, query.length() + 1);
-        // mySerCmd.Print((char *) CharArray);
-        // mySerCmd.Print((char *) "\r\n");
+        Serial.print(query);
         ret = mySerCmd.ReadString(CharArray);
         incomingI2CFlag = 0;
         break;
@@ -411,6 +416,6 @@ void loop() {
 
   ret = mySerCmd.ReadSer();
   if (ret == 0) {
-    mySerCmd.Print((char *) "ERROR: Urecognized command\r\n");
+    mySerCmd.Print((char *) "ERROR: Unrecognized command\r\n");
   }
 }
