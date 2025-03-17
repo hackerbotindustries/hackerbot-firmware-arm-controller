@@ -2,7 +2,7 @@
 HackerBot Industries, LLC
 Created By: Ian Bernstein
 Created:    December 2024
-Updated:    2025.03.11
+Updated:    2025.03.17
 
 This sketch is written for the "Arm Controller" PCB and interfaces the main
 controller to the myCobot 280 arm and Hackerbot gripper.
@@ -348,7 +348,7 @@ void setup() {
 
   // Configure the onboard neopixel
   onboard_pixel.begin();
-  onboard_pixel.setPixelColor(0, onboard_pixel.Color(0, 5, 0));
+  onboard_pixel.setPixelColor(0, onboard_pixel.Color(0, 0, 5));
   onboard_pixel.show();
 
   // Start the application
@@ -358,7 +358,7 @@ void setup() {
   mySerCmd.Print((char *) "INFO: Calibrating the gripper...\r\n");
   run_CALIBRATION();
 
-  onboard_pixel.setPixelColor(0, onboard_pixel.Color(0, 0, 5));
+  onboard_pixel.setPixelColor(0, onboard_pixel.Color(0, 5, 0));
   onboard_pixel.show();
 }
 
