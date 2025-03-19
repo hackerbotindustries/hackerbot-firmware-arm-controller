@@ -2,7 +2,7 @@
 HackerBot Industries, LLC
 Created By: Ian Bernstein
 Created:    December 2024
-Updated:    2025.03.17
+Updated:    2025.03.18
 
 This sketch is written for the "Arm Controller" PCB and interfaces the main
 controller to the myCobot 280 arm and Hackerbot gripper.
@@ -20,7 +20,7 @@ Randy  - https://github.com/rbeiter
 #include "SerialCmd_Helper.h"
 
 // Arm Controller software version
-#define VERSION_NUMBER 3
+#define VERSION_NUMBER 4
 
 // Set up variables and constants for dynamixel control
 #define DXL_SERIAL     Serial1
@@ -139,6 +139,18 @@ void sendOK(void) {
 void send_PING(void) {
   sendOK();
 }
+
+
+// Reports the current fw version
+// Example - "VERSION"
+void Get_Version(void) {
+  mySerCmd.Print((char *) "INFO: Arm Controller Firmware (v");
+  mySerCmd.Print(VERSION_NUMBER);
+  mySerCmd.Print((char *) ".0)\r\n");
+
+  sendOK();
+}
+
 
 // OPEN
 void set_OPEN(void) {
@@ -315,11 +327,12 @@ void setup() {
 
   // Define serial commands
   mySerCmd.AddCmd("PING", SERIALCMD_FROMALL, send_PING);
-  mySerCmd.AddCmd("CAL", SERIALCMD_FROMALL, run_CALIBRATION);
-  mySerCmd.AddCmd("OPEN", SERIALCMD_FROMALL, set_OPEN);
-  mySerCmd.AddCmd("CLOSE", SERIALCMD_FROMALL, set_CLOSE);
-  mySerCmd.AddCmd("ANGLE", SERIALCMD_FROMALL, set_ANGLE);
-  mySerCmd.AddCmd("ANGLES", SERIALCMD_FROMALL, set_ANGLES);
+  mySerCmd.AddCmd("VERSION", SERIALCMD_FROMALL, Get_Version);
+  mySerCmd.AddCmd("A_CAL", SERIALCMD_FROMALL, run_CALIBRATION);
+  mySerCmd.AddCmd("A_OPEN", SERIALCMD_FROMALL, set_OPEN);
+  mySerCmd.AddCmd("A_CLOSE", SERIALCMD_FROMALL, set_CLOSE);
+  mySerCmd.AddCmd("A_ANGLE", SERIALCMD_FROMALL, set_ANGLE);
+  mySerCmd.AddCmd("A_ANGLES", SERIALCMD_FROMALL, set_ANGLES);
 
   // Set up the dynamixel serial port
   dxl.begin(57600);
