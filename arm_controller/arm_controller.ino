@@ -2,7 +2,7 @@
 HackerBot Industries, LLC
 Created By: Ian Bernstein
 Created:    December 2024
-Updated:    2025.03.18
+Updated:    2025.03.31
 
 This sketch is written for the "Arm Controller" PCB and interfaces the main
 controller to the myCobot 280 arm and Hackerbot gripper.
@@ -20,7 +20,7 @@ Randy  - https://github.com/rbeiter
 #include "SerialCmd_Helper.h"
 
 // Arm Controller software version
-#define VERSION_NUMBER 4
+#define VERSION_NUMBER 5
 
 // Set up variables and constants for dynamixel control
 #define DXL_SERIAL     Serial1
@@ -252,11 +252,11 @@ void set_ANGLES(void) {
   }
 
   joint1Param = constrain(joint1Param, -165.0, 165.0);
-  joint2Param = constrain(joint1Param, -165.0, 165.0);
-  joint3Param = constrain(joint1Param, -165.0, 165.0);
-  joint4Param = constrain(joint1Param, -165.0, 165.0);
-  joint5Param = constrain(joint1Param, -165.0, 165.0);
-  joint6Param = constrain(joint1Param, -175.0, 175.0);
+  joint2Param = constrain(joint2Param, -165.0, 165.0);
+  joint3Param = constrain(joint3Param, -165.0, 165.0);
+  joint4Param = constrain(joint4Param, -165.0, 165.0);
+  joint5Param = constrain(joint5Param, -165.0, 165.0);
+  joint6Param = constrain(joint6Param, -175.0, 175.0);
   speedParam  = constrain(speedParam, 0, 100);
 
   Angles angles = {joint1Param, joint2Param, joint3Param, joint4Param, joint5Param, joint6Param};
@@ -389,29 +389,29 @@ void loop() {
     switch (cmd) {
       case I2C_COMMAND_A_CAL: // CAL
         mySerCmd.Print((char *) "INFO: run_CALIBRATION command received\r\n");
-        ret = mySerCmd.ReadString((char *) "CAL");
+        ret = mySerCmd.ReadString((char *) "A_CAL");
         incomingI2CFlag = 0;
         break;
       case I2C_COMMAND_A_OPEN: // Open
         mySerCmd.Print((char *) "INFO: set_OPEN command received\r\n");
-        ret = mySerCmd.ReadString((char *) "OPEN");
+        ret = mySerCmd.ReadString((char *) "A_OPEN");
         incomingI2CFlag = 0;
         break;
       case I2C_COMMAND_A_CLOSE: // Close
         mySerCmd.Print((char *) "INFO: set_CLOSE command received\r\n");
-        ret = mySerCmd.ReadString((char *) "CLOSE");
+        ret = mySerCmd.ReadString((char *) "A_CLOSE");
         incomingI2CFlag = 0;
         break;
       case I2C_COMMAND_A_ANGLE: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
         mySerCmd.Print((char *) "INFO: Set_ANGLE command received\r\n");
-        query = "ANGLE," + (String)(I2CRxArray[1]) + "," + (String)((((I2CRxArray[2] << 8) + I2CRxArray[3]) * 0.1) - 165.0) + "," + (String)(I2CRxArray[4]);
+        query = "A_ANGLE," + (String)(I2CRxArray[1]) + "," + (String)((((I2CRxArray[2] << 8) + I2CRxArray[3]) * 0.1) - 165.0) + "," + (String)(I2CRxArray[4]);
         query.toCharArray(CharArray, query.length() + 1);
         ret = mySerCmd.ReadString(CharArray);
         incomingI2CFlag = 0;
         break;
       case I2C_COMMAND_A_ANGLES: // Set_ANGLE Command - Params(joint, angle h, angle l, speed)
         mySerCmd.Print((char *) "INFO: Set_ANGLES command received\r\n");
-        query = "ANGLES," + 
+        query = "A_ANGLES," + 
         (String)((((I2CRxArray[1] << 8) + I2CRxArray[2]) * 0.1) - 165.0) + "," + 
         (String)((((I2CRxArray[3] << 8) + I2CRxArray[4]) * 0.1) - 165.0) + "," + 
         (String)((((I2CRxArray[5] << 8) + I2CRxArray[6]) * 0.1) - 165.0) + "," + 
@@ -420,7 +420,6 @@ void loop() {
         (String)((((I2CRxArray[11] << 8) + I2CRxArray[12]) * 0.1) - 175.0) + "," + 
         (String)(I2CRxArray[13]);
         query.toCharArray(CharArray, query.length() + 1);
-        Serial.print(query);
         ret = mySerCmd.ReadString(CharArray);
         incomingI2CFlag = 0;
         break;
